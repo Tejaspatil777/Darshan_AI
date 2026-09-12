@@ -1,0 +1,78 @@
+# ============================================================================
+# I:\Application - ROOT .gitignore
+#
+# This root repo covers the Flutter app (meriAttendance/), root tooling and docs.
+# The Spring Boot backend (darshan-backend/) is a SEPARATE git repository
+# (I:\Application\darshan-backend\.git) with its own .gitignore + history and
+# must be pushed to its OWN GitHub repo. It is excluded here so that a future
+# git add . never accidentally creates a broken submodule/gitlink entry.
+# ============================================================================
+
+# -------------------------------- OS files --------------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+~$*
+
+# ------------------------------- Editors / IDE ----------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# ------------------------------ Logs / scratch ----------------------------
+*.log
+logs/
+# Analysis / test scratch files generated at the app root
+/meriAttendance/analyze*.txt
+/meriAttendance/test*.txt
+/meriAttendance/flutter_test_new.txt
+/meriAttendance/enroll_fail.txt
+/meriAttendance/a.txt
+/meriAttendance/at.txt
+/meriAttendance/w.txt
+
+# ------------------- Secrets - NEVER commit (any depth) -------------------
+.env
+.env.*
+*.env
+application-local.yml
+application.local.yml
+key.properties
+**/*.keystore
+**/*.jks
+**/*.jceks
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.key
+**/serviceAccount*.json
+**/google-services.json
+secrets/
+
+# --------------------------------- Python ---------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# --------------------------- Build / generated ----------------------------
+/meriAttendance/.dart_tool/
+/meriAttendance/build/
+/meriAttendance/coverage/
+/meriAttendance/.flutter-plugins-dependencies
+**/DerivedData/
+
+# --------------------- Leftover IDE/agent hook tooling ---------------------
+.github/modernize/
+
+# --------------- Backend - SEPARATE repository (see header) ---------------
+darshan-backend/
