@@ -14,8 +14,14 @@ import '../../core/widgets/dashed_border.dart';
 import '../../routing/app_router.dart';
 import '../../state/attendance_provider.dart';
 
-/// Classroom photo capture: 5-10 photos via the live camera, one-handed
-/// layout, thumbnail strip with delete / retake / preview.
+/// Classroom photo capture: FULL-SCREEN live camera with a transparent 3x3
+/// composition grid (visual guide only), 5-10 manual captures, thumbnail
+/// strip with delete / retake / preview.
+///
+/// The grid is an overlay layer only: it never modifies the captured photo,
+/// never intercepts touches, and never blocks the camera or capture. The
+/// capture flow (AttendanceProvider.addPhoto -> multipart upload) is
+/// unchanged.
 class PhotoCaptureScreen extends StatefulWidget {
   const PhotoCaptureScreen({super.key});
 
@@ -114,96 +120,125 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Full-screen camera area: every pixel below the header, above
+            // the capture controls.
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenH, vertical: 12),
-                child: Column(
-                  children: [
-                    Text('Capture 5 to 10 photos',
-                        style: AppTypography.body),
-                    const SizedBox(height: 2),
-                    Text('(Front, Middle, Back, Left, Right)',
-                        style: AppTypography.caption),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 230,
-                      width: double.infinity,
-                      child: Stack(
-                        children: [
-                          CameraView(
-                            direction: CameraLensDirection.back,
-                            onControllerReady: _onCameraReady,
-                          ),
-                          Positioned(
-                            left: 12,
-                            bottom: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xCC111827),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                'Now capture: ${p.nextArea}',
-                                style: AppTypography.helper
-                                    .copyWith(color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('$count / ${AttendanceProvider.maxPhotos}',
-                        style: AppTypography.title),
-                    const SizedBox(height: 16),
-                    _Shutter(atMax: atMax),
-                    const SizedBox(height: 8),
-                    Text(atMax ? 'Maximum of 10 photos' : 'Tap to capture',
-                        style: AppTypography.caption),
-                    const SizedBox(height: 16),
-                    _ThumbStrip(onPreview: _showPreview),
-                    if (count < AttendanceProvider.minPhotos) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Capture at least '
-                        '${AttendanceProvider.minPhotos} photos to continue.',
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.warning),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Row(
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: SecondaryButton(
-                      label: 'Retake',
-                      onPressed: count > 0 ? p.retakeLast : null,
+                  Positioned.fill(
+                    child: CameraView(
+                      direction: CameraLensDirection.back,
+                      onControllerReady: _onCameraReady,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: PrimaryButton(
-                      label: 'Next',
-                      onPressed: p.canSubmit
-                          ? () => Navigator.of(context)
-                              .pushNamed(AppRoutes.processing)
-                          : null,
+                  // Transparent rule-of-thirds guide: over the preview,
+                  // under the pills. Overlay only.
+                  const Positioned.fill(child: CompositionGrid()),
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: _DarkPill(text: 'Now capture: ${p.nextArea}'),
+                  ),
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 14,
+                    child: Center(
+                      child: _DarkPill(text: 'Frame the classroom using the grid'),
                     ),
                   ),
                 ],
               ),
             ),
+            _CaptureControls(count: count, atMax: atMax, onPreview: _showPreview),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom capture controls: counter, shutter, thumbnails, retake/next.
+class _CaptureControls extends StatelessWidget {
+  const _CaptureControls({
+    required this.count,
+    required this.atMax,
+    required this.onPreview,
+  });
+
+  final int count;
+  final bool atMax;
+  final void Function(BuildContext, Uint8List?, int seed) onPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    final AttendanceProvider p = context.read<AttendanceProvider>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$count / ${AttendanceProvider.maxPhotos}',
+              style: AppTypography.title),
+          const SizedBox(height: 12),
+          _Shutter(atMax: atMax),
+          const SizedBox(height: 8),
+          Text(atMax ? 'Maximum of 10 photos' : 'Tap to capture',
+              style: AppTypography.caption),
+          const SizedBox(height: 12),
+          _ThumbStrip(onPreview: onPreview),
+          if (count < AttendanceProvider.minPhotos) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Capture at least ${AttendanceProvider.minPhotos} photos to continue.',
+              style: AppTypography.caption.copyWith(color: AppColors.warning),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SecondaryButton(
+                  label: 'Retake',
+                  onPressed: count > 0 ? p.retakeLast : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: PrimaryButton(
+                  label: 'Next',
+                  onPressed: p.canSubmit
+                      ? () => Navigator.of(context).pushNamed(AppRoutes.processing)
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// Dark rounded pill used for the on-preview instructions.
+class _DarkPill extends StatelessWidget {
+  const _DarkPill({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xCC111827),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: AppTypography.helper.copyWith(color: Colors.white),
       ),
     );
   }
@@ -299,3 +334,4 @@ class _AddTile extends StatelessWidget {
     );
   }
 }
+

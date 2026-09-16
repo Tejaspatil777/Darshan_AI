@@ -16,7 +16,7 @@
 /// no IP scanning) — see task rule 20.
 const String kDarshanApiUrl = String.fromEnvironment(
   'DARSHAN_API_URL',
-  defaultValue: 'http://localhost:8000',
+  defaultValue: 'http://10.31.152.187:8000',
 );
 
 /// Strips any trailing slash so paths can be appended safely.

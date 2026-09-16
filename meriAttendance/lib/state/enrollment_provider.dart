@@ -24,7 +24,9 @@ class EnrollmentProvider extends ChangeNotifier {
   /// (pose + base64 JPEG + locally computed quality metrics).
   Future<EnrollmentCapture> Function()? captureSource;
 
-  static const int totalCaptures = 7;
+  /// Total captures = length of the (configurable) pose sequence, so the
+  /// wizard automatically adapts if the backend ever requires a single pose.
+  static int get totalCaptures => poseSequence.length;
   static const List<EnrollmentPose> poseSequence = kEnrollmentPoseSequence;
 
   int wizardStep = 0;
@@ -48,7 +50,7 @@ class EnrollmentProvider extends ChangeNotifier {
   }
 
   /// Loads the real enrollment status for the current student
-  /// (GET /api/students/me/enrollment) — the backend is the source of truth,
+  /// (GET /api/students/me/enrollment) â€” the backend is the source of truth,
   /// never a local boolean.
   Future<void> refreshEnrolled() async {
     final student = _auth.studentProfile;
@@ -108,6 +110,20 @@ class EnrollmentProvider extends ChangeNotifier {
     });
   }
 
+  /// Registers one REAL, validated capture (produced by the guided
+  /// auto-capture flow) and advances the wizard by one pose.
+  ///
+  /// Returns false (no-op) when the capture cannot be registered: already
+  /// complete, a simulated capture is in flight, or the student is enrolled.
+  /// This is the only place a real capture is appended, so the backend is
+  /// called exactly once per required pose and duplicates are impossible.
+  bool registerCapture(EnrollmentCapture capture) {
+    if (captureComplete || detecting || enrolled) return false;
+    captures.add(capture);
+    captureIndex += 1;
+    notifyListeners();
+    return true;
+  }
   void retakeLast() {
     if (captureIndex > 0) {
       captureIndex -= 1;
@@ -164,4 +180,8 @@ class EnrollmentProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+
+
+
+
 

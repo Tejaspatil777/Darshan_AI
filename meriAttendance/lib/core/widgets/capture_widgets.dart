@@ -214,3 +214,192 @@ class FaceCropPreview extends StatelessWidget {
     );
   }
 }
+
+/// Transparent 3x3 composition grid drawn OVER the camera preview.
+///
+/// Purely a visual framing guide (rule-of-thirds): it is an IgnorePointer
+/// overlay, is never part of the captured photo, and does not interact with
+/// the camera, face detection, or capture in any way.
+class CompositionGrid extends StatelessWidget {
+  const CompositionGrid({
+    super.key,
+    this.color = const Color(0x59FFFFFF),
+    this.strokeWidth = 1.2,
+  });
+
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _CompositionGridPainter(
+          color: color,
+          strokeWidth: strokeWidth,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositionGridPainter extends CustomPainter {
+  _CompositionGridPainter({required this.color, required this.strokeWidth});
+
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+    final double dx = size.width / 3;
+    final double dy = size.height / 3;
+    for (int i = 1; i < 3; i++) {
+      canvas.drawLine(Offset(dx * i, 0), Offset(dx * i, size.height), paint);
+      canvas.drawLine(Offset(0, dy * i), Offset(size.width, dy * i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CompositionGridPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
+}
+
+/// eKYC/Aadhaar-style circular face guide drawn OVER the live camera preview.
+///
+/// Purely visual (IgnorePointer): it never gates capture — ML Kit face
+/// presence is the only auto-capture trigger. States:
+///  - [color] neutral/orange when no face, green when a face is detected.
+///  - [animating] adds a subtle expanding ripple (used while capturing).
+class CircularFaceGuide extends StatefulWidget {
+  const CircularFaceGuide({
+    super.key,
+    required this.size,
+    required this.color,
+    this.animating = false,
+    this.strokeWidth = 4,
+  });
+
+  final double size;
+  final Color color;
+  final bool animating;
+  final double strokeWidth;
+
+  @override
+  State<CircularFaceGuide> createState() => _CircularFaceGuideState();
+}
+
+class _CircularFaceGuideState extends State<CircularFaceGuide>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+  );
+
+  @override
+  void didUpdateWidget(covariant CircularFaceGuide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.animating != oldWidget.animating) {
+      if (widget.animating) {
+        _pulse.repeat(reverse: true);
+      } else {
+        _pulse.stop();
+        _pulse.value = 0;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (BuildContext context, Widget? _) => CustomPaint(
+          size: Size.square(widget.size),
+          painter: _FaceRingPainter(
+            color: widget.color,
+            strokeWidth: widget.strokeWidth,
+            pulse: _pulse.value,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FaceRingPainter extends CustomPainter {
+  _FaceRingPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.pulse,
+  });
+
+  final Color color;
+  final double strokeWidth;
+  final double pulse;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = size.center(Offset.zero);
+    final double radius = size.shortestSide / 2 - strokeWidth;
+
+    // Neon-style halo behind the ring (matches the eKYC reference design).
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color.withValues(alpha: 0.50)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth * 2.4
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+    // Soft outer glow.
+    canvas.drawCircle(
+      center,
+      radius + strokeWidth,
+      Paint()
+        ..color = color.withValues(alpha: 0.22)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth * 0.8,
+    );
+    // Main ring.
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
+    );
+    // Subtle ripple while capturing.
+    if (pulse > 0) {
+      canvas.drawCircle(
+        center,
+        radius * (1 + 0.10 * pulse),
+        Paint()
+          ..color = color.withValues(alpha: 0.45 * (1 - pulse))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth * (1 + 0.5 * pulse),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FaceRingPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.pulse != pulse;
+}
+
+
